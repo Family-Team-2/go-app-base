@@ -1,4 +1,4 @@
-package main
+package goapp
 
 import (
 	"strings"
@@ -18,27 +18,31 @@ type timingContext struct {
 
 type timingContextKey struct{}
 
-func Start[T any](ctx *App[T], names ...string) (*App[T], func()) {
+func (app *App[T]) Perf(names ...string) (newApp *App[T], done func()) {
+	if !app.f.cfg.Common.TracePerf {
+		return app, func() {}
+	}
+
 	tc := &timingContext{
 		name:  strings.Join(names, "/"),
 		start: time.Now(),
 	}
 
-	parent, ok := ctx.Value(timingContextKey{}).(*timingContext)
+	parent, ok := app.Value(timingContextKey{}).(*timingContext)
 	if !ok {
 		tc.isRoot = true
 	} else {
 		parent.children = append(parent.children, tc)
 	}
 
-	done := func() {
+	done = func() {
 		tc.duration = time.Since(tc.start)
-		if tc.isRoot {
-			tc.Print(ctx.Logger())
+		if tc.isRoot && app.Logger() != nil {
+			tc.Print(app.Logger())
 		}
 	}
 
-	return ctx.WithValue(timingContextKey{}, tc), done
+	return app.WithValue(timingContextKey{}, tc), done
 }
 
 func (tc *timingContext) Print(logger *zerolog.Logger) {

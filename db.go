@@ -1,4 +1,4 @@
-package main
+package goapp
 
 import (
 	"context"
@@ -7,22 +7,47 @@ import (
 	"github.com/Family-Team-2/go-app-base/database"
 )
 
-func (c *App[_]) initDB() error {
-	if !c.dbKind.HasDB() {
-		c.db = nil
+func (app *App[_]) DBC(ctx context.Context) *database.DB {
+	return &database.DB{
+		DB: app.f.db.WithContext(ctx),
+	}
+}
+
+func (app *App[_]) DB() *database.DB {
+	return app.DBC(app)
+}
+
+func (app *App[_]) UseSQLite() {
+	app.SetDB(database.DB_SQLITE)
+}
+
+func (app *App[_]) UsePostgreSQL() {
+	app.SetDB(database.DB_POSTGRES)
+}
+
+func (app *App[_]) UseCockroachDB() {
+	app.SetDB(database.DB_CRDB)
+}
+
+func (app *App[_]) initDB() error {
+	app, done := app.Perf("initDB")
+	defer done()
+
+	if !app.f.dbKind.HasDB() {
+		app.f.db = nil
 		return nil
 	}
 
-	db, err := database.NewDB(c.Context, &c.logger, c.dbKind, c.cfg.Common.DatabaseURL, c.cfg.Common.TraceSQL)
+	db, err := database.NewDB(app.Context, &app.f.logger, app.f.dbKind, app.f.cfg.Common.DatabaseURL, app.f.cfg.Common.TraceSQL)
 	if err != nil {
 		return fmt.Errorf("creating db instance: %w", err)
 	}
 
 	version, err := db.GetVersion()
 	if err != nil {
-		c.logger.Error().Err(err).Msg("db: failed to get version")
+		app.f.logger.Error().Err(err).Msg("db: failed to get version")
 	} else {
-		c.logger.Debug().Str("version", version).Msg("db: running version")
+		app.f.logger.Debug().Str("version", version).Msg("db: running version")
 	}
 
 	err = db.SetMaxConnections(10)
@@ -30,37 +55,18 @@ func (c *App[_]) initDB() error {
 		return fmt.Errorf("setting db max connections: %w", err)
 	}
 
-	c.db = db
+	app.f.db = db
 	return nil
 }
 
-func (c *App[_]) shutdownDB() {
-	if c.db != nil {
-		err := c.db.Shutdown()
+func (app *App[_]) shutdownDB() {
+	app, done := app.Perf("shutdownDB")
+	defer done()
+
+	if app.f.db != nil {
+		err := app.f.db.Shutdown()
 		if err != nil {
-			c.logger.Err(err).Msg("error while shutting down db")
+			app.f.logger.Err(err).Msg("error while shutting down db")
 		}
 	}
-}
-
-func (c *App[_]) DBC(ctx context.Context) *database.DB {
-	return &database.DB{
-		DB: c.db.WithContext(ctx),
-	}
-}
-
-func (c *App[_]) DB() *database.DB {
-	return c.DBC(c)
-}
-
-func (c *App[_]) UseSQLite() {
-	c.SetDB(database.DB_SQLITE)
-}
-
-func (c *App[_]) UsePostgreSQL() {
-	c.SetDB(database.DB_POSTGRES)
-}
-
-func (c *App[_]) UseCockroachDB() {
-	c.SetDB(database.DB_CRDB)
 }

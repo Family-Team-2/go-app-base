@@ -1,26 +1,27 @@
-package main
+package goapp
 
 import (
 	"context"
 	"time"
 )
 
-func (c *App[T]) WithValue(key, val any) *App[T] {
-	newApp := c.clone()
-	newApp.Context = context.WithValue(newApp.Context, key, val)
-	return newApp
+func (app *App[T]) WithValue(key, val any) *App[T] {
+	return app.cloneWithContext(context.WithValue(app.Context, key, val))
 }
 
-func (c *App[T]) WithTimeout(d time.Duration) (*App[T], func()) {
-	var cancel func()
-	newApp := c.clone()
-	newApp.Context, cancel = context.WithTimeout(newApp.Context, d)
-	return newApp, cancel
+func (app *App[T]) WithTimeout(d time.Duration) (newApp *App[T], done func()) {
+	ctx, cancel := context.WithTimeout(app.Context, d)
+	return app.cloneWithContext(ctx), cancel
 }
 
-func (c *App[T]) WithCancel() (*App[T], func()) {
-	var cancel func()
-	newApp := c.clone()
-	newApp.Context, cancel = context.WithCancel(newApp.Context)
-	return newApp, cancel
+func (app *App[T]) WithCancel() (newApp *App[T], done func()) {
+	ctx, cancel := context.WithCancel(app.Context)
+	return app.cloneWithContext(ctx), cancel
+}
+
+func (app *App[T]) cloneWithContext(ctx context.Context) *App[T] {
+	return &App[T]{
+		Context: ctx,
+		f:       app.f,
+	}
 }

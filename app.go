@@ -1,4 +1,4 @@
-package main
+package goapp
 
 import (
 	"context"
@@ -18,11 +18,10 @@ type CommonConfig struct {
 	Debug       bool   `yaml:"debug"`
 	DatabaseURL string `yaml:"database_url"`
 	TraceSQL    bool   `yaml:"trace_sql"`
+	TracePerf   bool   `yaml:"trace_perf"`
 }
 
-type App[T any] struct {
-	context.Context
-
+type AppFields[T any] struct {
 	cfg struct {
 		Common CommonConfig `yaml:",inline"`
 		Custom T            `yaml:",inline"`
@@ -37,97 +36,122 @@ type App[T any] struct {
 	hasLogger bool
 }
 
-func (c *App[_]) CommonConfig() *CommonConfig {
-	return &c.cfg.Common
+type App[T any] struct {
+	context.Context
+
+	f *AppFields[T]
 }
 
-func (c *App[T]) Config() *T {
-	return &c.cfg.Custom
+func NewApp[T any](title, version string) *App[T] {
+	return &App[T]{
+		f: &AppFields[T]{
+			title:   title,
+			version: version,
+		},
+	}
 }
 
-func (c *App[_]) SetTitle(title string) {
-	c.title = title
+func (app *App[_]) CommonConfig() *CommonConfig {
+	app.ensureFieldsSet()
+	return &app.f.cfg.Common
 }
 
-func (c *App[_]) SetVersion(version string) {
-	c.version = version
+func (app *App[T]) Config() *T {
+	app.ensureFieldsSet()
+	return &app.f.cfg.Custom
 }
 
-func (c *App[_]) SetDB(kind database.DBKind) {
-	c.dbKind = kind
+func (app *App[_]) SetTitle(title string) {
+	app.ensureFieldsSet()
+	app.f.title = title
 }
 
-func (c *App[T]) Run(callback func(ctx *App[T]) error) {
+func (app *App[_]) SetVersion(version string) {
+	app.ensureFieldsSet()
+	app.f.version = version
+}
+
+func (app *App[_]) SetDB(kind database.DBKind) {
+	app.ensureFieldsSet()
+	app.f.dbKind = kind
+}
+
+func (app *App[T]) Run(callback func(ctx *App[T]) error) error {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 
-	err := c.runContext(ctx, callback)
-	if err == nil {
-		c.logger.Info().Msg("shutting down")
-	} else {
-		if c.hasLogger {
-			c.logger.Err(err).Msg("shutting down")
+	app.ensureFieldsSet()
+	err := app.runContext(ctx, callback)
+	if err != nil {
+		if app.f.hasLogger {
+			app.f.logger.Err(err).Msg("shutting down")
 		} else {
 			fmt.Println(err.Error())
 		}
 
-		os.Exit(1)
+		return err
 	}
+
+	app.f.logger.Info().Msg("shutting down")
+	return nil
 }
 
-func (c *App[T]) runContext(ctx context.Context, callback func(ctx *App[T]) error) error {
-	title := c.title
+func (app *App[T]) runContext(ctx context.Context, callback func(ctx *App[T]) error) error {
+	title := app.f.title
 	if title == "" {
 		title = "App"
 	}
 
-	version := c.version
+	version := app.f.version
 	if version == "" {
 		version = "0.0.1"
 	}
 
-	c.Context = ctx
+	app.Context = ctx
 
-	flag.BoolVar(&c.cfg.Common.Debug, "d", false, "")
-	flag.BoolVar(&c.cfg.Common.Debug, "debug", false, "")
-	flag.StringVar(&c.cfg.Common.ConfigFile, "c", "config.yml", "")
-	flag.StringVar(&c.cfg.Common.ConfigFile, "config-file", "config.yml", "")
+	flag.BoolVar(&app.f.cfg.Common.Debug, "d", false, "")
+	flag.BoolVar(&app.f.cfg.Common.Debug, "debug", false, "")
+	flag.StringVar(&app.f.cfg.Common.ConfigFile, "c", "config.yml", "")
+	flag.StringVar(&app.f.cfg.Common.ConfigFile, "config-file", "config.yml", "")
+	flag.BoolVar(&app.f.cfg.Common.TracePerf, "t", false, "")
+	flag.BoolVar(&app.f.cfg.Common.TracePerf, "trace-perf", false, "")
 
 	flag.Usage = func() {
 		fmt.Println(title + " v" + version + "\n" +
 			"Usage:\n" +
 			"\t-d, --debug: enable debug output\n" +
-			"\t-c, --config-file: path to config file")
+			"\t-c, --config-file: path to config file\n" +
+			"\t-t, --trace-perf: enable perf tracing")
 	}
 
 	flag.Parse()
 
-	err := c.loadConfig()
+	err := app.loadConfig()
 	if err != nil {
 		return fmt.Errorf("loading config: %w", err)
 	}
 
-	c.makeLogger()
+	app.makeLogger()
 
-	err = c.initDB()
+	err = app.initDB()
 	if err != nil {
 		return fmt.Errorf("initializing DB: %w", err)
 	}
-	defer c.shutdownDB()
+	defer app.shutdownDB()
 
-	c.Log().Str("title", c.title).Str("version", c.version).Msg("app: running")
-	return callback(c)
+	app.Log().Str("title", app.f.title).Str("version", app.f.version).Msg("app: running")
+	return callback(app)
 }
 
-func (c *App[_]) loadConfig() error {
-	f, err := os.Open(c.cfg.Common.ConfigFile)
+func (app *App[_]) loadConfig() error {
+	f, err := os.Open(app.f.cfg.Common.ConfigFile)
 	if err != nil {
-		return fmt.Errorf("opening config file \"%v\": %w", c.cfg.Common.ConfigFile, err)
+		return fmt.Errorf("opening config file \"%v\": %w", app.f.cfg.Common.ConfigFile, err)
 	}
 	defer f.Close()
 
 	decoder := yaml.NewDecoder(f)
-	err = decoder.Decode(&c.cfg)
+	err = decoder.Decode(&app.f.cfg)
 	if err != nil {
 		return fmt.Errorf("decoding YAML: %w", err)
 	}
@@ -135,7 +159,8 @@ func (c *App[_]) loadConfig() error {
 	return nil
 }
 
-func (c *App[T]) clone() *App[T] {
-	var newApp = *c
-	return &newApp
+func (app *App[T]) ensureFieldsSet() {
+	if app.f == nil {
+		app.f = &AppFields[T]{}
+	}
 }
