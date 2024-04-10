@@ -1,16 +1,15 @@
-package timing
+package app
 
 import (
 	"strings"
 	"time"
 
-	"github.com/Family-Team-2/go-app-base/appctx"
 	"github.com/rs/zerolog"
 )
 
-type TimingContext struct {
+type timingContext struct {
 	name     string
-	children []*TimingContext
+	children []*timingContext
 
 	isRoot   bool
 	start    time.Time
@@ -19,13 +18,13 @@ type TimingContext struct {
 
 type timingContextKey struct{}
 
-func Start(ctx *appctx.AppCtxAny, names ...string) (*appctx.AppCtxAny, func()) {
-	tc := &TimingContext{
+func Start[T any](ctx *App[T], names ...string) (*App[T], func()) {
+	tc := &timingContext{
 		name:  strings.Join(names, "/"),
 		start: time.Now(),
 	}
 
-	parent, ok := ctx.Value(timingContextKey{}).(*TimingContext)
+	parent, ok := ctx.Value(timingContextKey{}).(*timingContext)
 	if !ok {
 		tc.isRoot = true
 	} else {
@@ -42,7 +41,7 @@ func Start(ctx *appctx.AppCtxAny, names ...string) (*appctx.AppCtxAny, func()) {
 	return ctx.WithValue(timingContextKey{}, tc), done
 }
 
-func (tc *TimingContext) Print(logger *zerolog.Logger) {
+func (tc *timingContext) Print(logger *zerolog.Logger) {
 	s := "timing: " + tc.name
 
 	s2 := tc.internalPrint(0)
@@ -55,7 +54,7 @@ func (tc *TimingContext) Print(logger *zerolog.Logger) {
 	logger.Debug().Msg(s)
 }
 
-func (tc *TimingContext) internalPrint(padding int) string {
+func (tc *timingContext) internalPrint(padding int) string {
 	if len(tc.children) == 0 {
 		return ""
 	}
