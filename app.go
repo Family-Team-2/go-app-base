@@ -21,7 +21,7 @@ type CommonConfig struct {
 	TracePerf   bool   `yaml:"trace_perf"`
 }
 
-type AppFields[T any] struct {
+type appFields[T any] struct {
 	cfg struct {
 		Common CommonConfig `yaml:",inline"`
 		Custom T            `yaml:",inline"`
@@ -39,12 +39,12 @@ type AppFields[T any] struct {
 type App[T any] struct {
 	context.Context
 
-	f *AppFields[T]
+	f *appFields[T]
 }
 
 func NewApp[T any](title, version string) *App[T] {
 	return &App[T]{
-		f: &AppFields[T]{
+		f: &appFields[T]{
 			title:   title,
 			version: version,
 		},
@@ -161,6 +161,6 @@ func (app *App[_]) loadConfig() error {
 
 func (app *App[T]) ensureFieldsSet() {
 	if app.f == nil {
-		app.f = &AppFields[T]{}
+		app.f = &appFields[T]{}
 	}
 }
