@@ -52,7 +52,7 @@ func NewDB(ctx context.Context, logger *zerolog.Logger, kind DBKind, databaseURL
 		Logger: newDBLogger(logger, trace),
 	})
 	if err != nil {
-		return nil, fmt.Errorf("initializing db: %w", err)
+		return nil, fmt.Errorf("opening db: %w", err)
 	}
 
 	sqlDB, err := db.sqlDB()

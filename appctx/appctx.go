@@ -8,32 +8,36 @@ import (
 	"github.com/rs/zerolog"
 )
 
-type AppCtx struct {
+type AppCtx[T any] struct {
 	context.Context
 }
 
+type AppCtxAny = AppCtx[any]
+
 type appCtxKey struct{}
 
-type appCtxContents struct {
+type appCtxContents[T any] struct {
 	logger *zerolog.Logger
 	db     *database.DB
+	cfg    *T
 }
 
-func NewAppCtx(ctx context.Context, logger *zerolog.Logger, db *database.DB) AppCtx {
-	ac := AppCtx{
-		context.WithValue(ctx, appCtxKey{}, &appCtxContents{
+func NewAppCtx[T any](ctx context.Context, cfg *T, logger *zerolog.Logger, db *database.DB) AppCtx[T] {
+	ac := AppCtx[T]{
+		Context: context.WithValue(ctx, appCtxKey{}, &appCtxContents[T]{
 			logger: logger,
 			db:     db,
+			cfg:    cfg,
 		}),
 	}
 
 	return ac
 }
 
-func FromContext(ctx context.Context) *AppCtx {
-	ac, ok := ctx.(*AppCtx)
+func FromContext[T any](ctx context.Context) *AppCtx[T] {
+	ac, ok := ctx.(*AppCtx[T])
 	if !ok || ac == nil {
-		return &AppCtx{
+		return &AppCtx[T]{
 			ctx,
 		}
 	} else {
@@ -41,47 +45,51 @@ func FromContext(ctx context.Context) *AppCtx {
 	}
 }
 
-func (ac *AppCtx) Logger() *zerolog.Logger {
-	return contents(ac).logger
+func (ac *AppCtx[T]) Logger() *zerolog.Logger {
+	return contents[T](ac).logger
 }
 
-func (ac *AppCtx) Log() *zerolog.Event {
-	return contents(ac).logger.Info()
+func (ac *AppCtx[T]) Log() *zerolog.Event {
+	return contents[T](ac).logger.Info()
 }
 
-func (ac *AppCtx) Debug() *zerolog.Event {
-	return contents(ac).logger.Debug()
+func (ac *AppCtx[T]) Debug() *zerolog.Event {
+	return contents[T](ac).logger.Debug()
 }
 
-func (ac *AppCtx) Error() *zerolog.Event {
-	return contents(ac).logger.Error()
+func (ac *AppCtx[T]) Error() *zerolog.Event {
+	return contents[T](ac).logger.Error()
 }
 
-func (ac *AppCtx) DBC(ctx context.Context) *database.DB {
+func (ac *AppCtx[T]) Cfg() *T {
+	return contents[T](ac).cfg
+}
+
+func (ac *AppCtx[T]) DBC(ctx context.Context) *database.DB {
 	return &database.DB{
-		DB: contents(ac).db.WithContext(ctx),
+		DB: contents[T](ac).db.WithContext(ctx),
 	}
 }
 
-func (ac *AppCtx) DB() *database.DB {
+func (ac *AppCtx[T]) DB() *database.DB {
 	return ac.DBC(ac)
 }
 
-func (ac *AppCtx) WithValue(key, val any) *AppCtx {
-	return &AppCtx{
+func (ac *AppCtx[T]) WithValue(key, val any) *AppCtx[T] {
+	return &AppCtx[T]{
 		Context: context.WithValue(ac, key, val),
 	}
 }
 
-func (ac *AppCtx) WithTimeout(d time.Duration) (*AppCtx, func()) {
+func (ac *AppCtx[T]) WithTimeout(d time.Duration) (*AppCtx[T], func()) {
 	ctx, cancel := context.WithTimeout(ac, d)
-	return &AppCtx{
+	return &AppCtx[T]{
 		Context: ctx,
 	}, cancel
 }
 
-func contents(ctx context.Context) *appCtxContents {
-	c, ok := ctx.Value(appCtxKey{}).(*appCtxContents)
+func contents[T any](ctx context.Context) *appCtxContents[T] {
+	c, ok := ctx.Value(appCtxKey{}).(*appCtxContents[T])
 	if !ok || c == nil {
 		panic("missing contents from app context")
 	}

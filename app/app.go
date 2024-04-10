@@ -57,7 +57,7 @@ func (c *App[_]) SetDB(kind database.DBKind) {
 	c.dbKind = kind
 }
 
-func (c *App[_]) Run(callback func(ctx *appctx.AppCtx) error) {
+func (c *App[T]) Run(callback func(ctx *appctx.AppCtx[T]) error) {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 
@@ -75,7 +75,7 @@ func (c *App[_]) Run(callback func(ctx *appctx.AppCtx) error) {
 	}
 }
 
-func (c *App[_]) runContext(ctx context.Context, callback func(ctx *appctx.AppCtx) error) error {
+func (c *App[T]) runContext(ctx context.Context, callback func(ctx *appctx.AppCtx[T]) error) error {
 	title := c.title
 	if title == "" {
 		title = "App"
@@ -122,7 +122,7 @@ func (c *App[_]) runContext(ctx context.Context, callback func(ctx *appctx.AppCt
 		}
 	}()
 
-	ac := appctx.NewAppCtx(ctx, &c.logger, db)
+	ac := appctx.NewAppCtx(ctx, c.CustomConfig(), &c.logger, db)
 	ac.Log().Str("title", c.title).Str("version", c.version).Msg("app: running")
 
 	return callback(&ac)

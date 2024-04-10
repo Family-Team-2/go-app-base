@@ -19,7 +19,7 @@ type TimingContext struct {
 
 type timingContextKey struct{}
 
-func Start(ctx *appctx.AppCtx, names ...string) (*appctx.AppCtx, func()) {
+func Start(ctx *appctx.AppCtxAny, names ...string) (*appctx.AppCtxAny, func()) {
 	tc := &TimingContext{
 		name:  strings.Join(names, "/"),
 		start: time.Now(),
