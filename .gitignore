@@ -1,0 +1,13 @@
+*
+!.gitignore
+!.editorconfig
+!*.go
+!go.mod
+!go.sum
+
+!*/
+!*/*.go
+!*/go.mod
+!*/go.sum
+
+!*.md
