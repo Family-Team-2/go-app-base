@@ -1,6 +1,7 @@
 package goapp
 
 import (
+	"errors"
 	"os"
 	"time"
 
@@ -15,12 +16,20 @@ func (app *App[T]) Log() *zerolog.Event {
 	return app.f.logger.Info()
 }
 
+func (app *App[T]) Warn() *zerolog.Event {
+	return app.f.logger.Warn()
+}
+
 func (app *App[T]) Debug() *zerolog.Event {
 	return app.f.logger.Debug()
 }
 
-func (app *App[T]) Error() *zerolog.Event {
-	return app.f.logger.Error()
+func (app *App[T]) Error(errs ...error) *zerolog.Event {
+	if len(errs) == 0 {
+		return app.f.logger.Error()
+	} else {
+		return app.f.logger.Error().Err(errors.Join(errs...))
+	}
 }
 
 func (app *App[_]) makeLogger() {

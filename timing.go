@@ -28,6 +28,9 @@ func (app *App[T]) Perf(names ...string) (newApp *App[T], done func()) {
 		start: time.Now(),
 	}
 
+	app.f.timingMu.Lock()
+	defer app.f.timingMu.Unlock()
+
 	parent, ok := app.Value(timingContextKey{}).(*timingContext)
 	if !ok {
 		tc.isRoot = true
@@ -36,6 +39,9 @@ func (app *App[T]) Perf(names ...string) (newApp *App[T], done func()) {
 	}
 
 	done = func() {
+		app.f.timingMu.Lock()
+		defer app.f.timingMu.Unlock()
+
 		tc.duration = time.Since(tc.start)
 		if tc.isRoot && app.Logger() != nil {
 			tc.Print(app.Logger())

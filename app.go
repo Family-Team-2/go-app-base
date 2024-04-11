@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 
 	"github.com/Family-Team-2/go-app-base/database"
@@ -34,6 +35,8 @@ type appFields[T any] struct {
 
 	logger    zerolog.Logger
 	hasLogger bool
+	cancel    func()
+    timingMu sync.Mutex
 }
 
 type App[T any] struct {
@@ -81,6 +84,8 @@ func (app *App[T]) Run(callback func(ctx *App[T]) error) error {
 	defer cancel()
 
 	app.ensureFieldsSet()
+	app.f.cancel = cancel
+
 	err := app.runContext(ctx, callback)
 	if err != nil {
 		if app.f.hasLogger {
@@ -94,6 +99,14 @@ func (app *App[T]) Run(callback func(ctx *App[T]) error) error {
 
 	app.f.logger.Info().Msg("shutting down")
 	return nil
+}
+
+func (app *App[_]) Stop() {
+	app.f.logger.Debug().Msg("app stop requested")
+
+	if app.f.cancel != nil {
+		app.f.cancel()
+	}
 }
 
 func (app *App[T]) runContext(ctx context.Context, callback func(ctx *App[T]) error) error {
