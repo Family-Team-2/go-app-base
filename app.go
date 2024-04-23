@@ -32,11 +32,12 @@ type appFields[T any] struct {
 	dbKind  database.DBKind
 	title   string
 	version string
+	flags   []appFlag
 
 	logger    zerolog.Logger
 	hasLogger bool
 	cancel    func()
-    timingMu sync.Mutex
+	timingMu  sync.Mutex
 }
 
 type App[T any] struct {
@@ -129,12 +130,14 @@ func (app *App[T]) runContext(ctx context.Context, callback func(ctx *App[T]) er
 	flag.BoolVar(&app.f.cfg.Common.TracePerf, "t", false, "")
 	flag.BoolVar(&app.f.cfg.Common.TracePerf, "trace-perf", false, "")
 
+	app.registerFlags()
+
 	flag.Usage = func() {
 		fmt.Println(title + " v" + version + "\n" +
 			"Usage:\n" +
 			"\t-d, --debug: enable debug output\n" +
 			"\t-c, --config-file: path to config file\n" +
-			"\t-t, --trace-perf: enable perf tracing")
+			"\t-t, --trace-perf: enable perf tracing" + app.getFlagHelp())
 	}
 
 	flag.Parse()
