@@ -19,6 +19,10 @@ func (app *App[T]) WithCancel() (newApp *App[T], done func()) {
 	return app.cloneWithContext(ctx), cancel
 }
 
+func (app *App[T]) WithContext(ctx context.Context) *App[T] {
+	return app.cloneWithContext(ctx)
+}
+
 func (app *App[T]) cloneWithContext(ctx context.Context) *App[T] {
 	return &App[T]{
 		Context: ctx,
